@@ -1,85 +1,53 @@
-const OpenAI = require('openai');
+const { HfInference } = require('@huggingface/inference');
 
 const generateStory = async (req, res) => {
     try {
         const { characters, setting, theme, ageGroup } = req.body;
         
-        // Initialize OpenAI
-        const openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY
-        });
+        // Initialize Hugging Face client
+        const hf = new HfInference(process.env.HUGGING_FACE_API_KEY);
 
         // Format character introductions
         const mainCharacter = characters[0];
         const supportingCharacters = characters.slice(1).join(' and ');
 
         // Determine age-appropriate complexity
-        let complexity = '';
+        let style = '';
         if (ageGroup.includes('3-5')) {
-            complexity = 'Use very simple words, short sentences, and repetitive patterns suitable for preschoolers.';
+            style = 'simple words, short sentences, repetitive patterns';
         } else if (ageGroup.includes('6-8')) {
-            complexity = 'Use simple language with some descriptive words and shorter paragraphs suitable for early readers.';
+            style = 'simple language, descriptive words, short paragraphs';
         } else {
-            complexity = 'Use engaging vocabulary and descriptive language suitable for confident readers, but keep it appropriate for children.';
+            style = 'engaging vocabulary, descriptive language, complex narrative';
         }
 
-        // Create a detailed prompt for GPT
-        const prompt = `You are a professional children's story writer. Write an original, engaging children's story with these requirements:
+        // Create a shorter, more focused prompt
+        const prompt = `Write a children's story (${ageGroup} years) about ${mainCharacter}${supportingCharacters ? ` and ${supportingCharacters}` : ''} in ${setting}. Theme: ${theme}. Style: ${style}. Start with "Once upon a time" and end with a moral lesson about ${theme}.
 
-STORY ELEMENTS:
-- Main Character: ${mainCharacter}
-${supportingCharacters ? `- Supporting Characters: ${supportingCharacters}` : ''}
-- Setting: ${setting}
-- Theme/Lesson: ${theme}
-- Target Age: ${ageGroup} years old
+Story structure:
+1. Introduce characters
+2. Present a challenge
+3. Show growth
+4. Happy ending
+5. End with "The End"`;
 
-WRITING STYLE:
-- ${complexity}
-- Use colorful and imaginative descriptions
-- Include natural-sounding dialogue
-- Create emotional connections with characters
-- Maintain a positive and uplifting tone
-
-STORY STRUCTURE:
-1. Start with "Once upon a time"
-2. Introduce the characters and setting vividly
-3. Present a clear problem or challenge related to ${theme}
-4. Show character growth and development
-5. Include a satisfying resolution
-6. End with a clear moral lesson about ${theme}
-7. Conclude with "The End"
-
-IMPORTANT GUIDELINES:
-- Keep the story length appropriate for ${ageGroup} year olds
-- Ensure all content is child-friendly and positive
-- Make the story engaging and interactive
-- Include moments of gentle humor
-- Create memorable and quotable lines
-- Make the moral lesson clear but not preachy
-
-Please generate a complete, coherent story that follows all these requirements.`;
-
-        // Generate the story using GPT-3.5
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    "role": "system",
-                    "content": "You are a professional children's story writer who creates engaging, age-appropriate stories with clear moral lessons."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature: 0.7,
-            max_tokens: 1000,
-            top_p: 1,
-            frequency_penalty: 0.5,
-            presence_penalty: 0.3
+        // Generate the story using Hugging Face
+        const result = await hf.textGeneration({
+            model: 'gpt2-xl',
+            inputs: prompt,
+            parameters: {
+                max_new_tokens: 750,
+                temperature: 0.7,
+                top_p: 0.95,
+                repetition_penalty: 1.2,
+                do_sample: true
+            }
         });
 
-        let story = completion.choices[0].message.content;
+        let story = result.generated_text;
+
+        // Clean up the generated text
+        story = story.replace(prompt, '').trim();
 
         // Ensure proper story formatting
         if (!story.toLowerCase().startsWith('once upon a time')) {

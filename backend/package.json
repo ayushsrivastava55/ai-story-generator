@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@huggingface/inference": "^2.8.1",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
